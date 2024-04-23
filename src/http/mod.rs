@@ -1,4 +1,5 @@
 use tokio::sync::{watch::Sender, RwLock};
+use std::time::Instant;
 use rand::{distributions::Alphanumeric, Rng};
 use axum::{
     body::Body, extract::{ws::WebSocketUpgrade, ConnectInfo, State}, response::Response, routing::get, Router
@@ -13,6 +14,7 @@ mod websocket;
 async fn http_get_stream(State(tx): State<Arc<Mutex<Sender<Vec<u8>>>>>) -> Response<> {
     println!("[HTTP][JPEG] Nouveau client connecté");
     let stream = stream::JPEGStream {
+        last_send: Instant::now(),
         rx: tx.lock().await.subscribe()
     };
     let body = Body::from_stream(stream);

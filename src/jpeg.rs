@@ -60,7 +60,7 @@ impl JPEGServer {
             }
     
             let size = u64::from_le_bytes(size) as usize;
-            // println!("[DEBUG] Taille de l'image: {} octets", size);
+            //println!("[DEBUG] Taille de l'image: {} octets", size);
     
             let mut image = vec![0; size];
             match client.read_exact(&mut image).await {
@@ -68,16 +68,15 @@ impl JPEGServer {
                 Err(e) => {self.error(&mut client, e).await; break;}
             }
     
-            self.jpeg_tx.lock().await.send(image).expect("[JPEG] Impossible de broadcast les données.\n");
+            let in_stream = self.jpeg_tx.lock().await.send(image).is_ok();
+
             fps = fps + 1;
-    
+        
             if start_time.elapsed().unwrap().as_millis() > 1000 {
-                println!("[JPEG][{}] FPS: {}", client_addr.to_string(), fps);
+                println!("[JPEG][{}] FPS: {} (stream?: {})", client_addr.to_string(), fps, in_stream);
                 start_time = SystemTime::now();
                 fps = 0;
             }
-    
-            // println!("[DEBUG] Fin de réception de l'image");
         }
     
         println!("[JPEG][{}] Client déconnecté.", client_addr.to_string());

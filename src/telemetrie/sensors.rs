@@ -26,9 +26,11 @@ impl fmt::Display for IMUData {
 #[derive(Encode, Decode, Clone, Serialize, Copy)]
 pub struct GPSData {
     pub status: u8,
-    pub lat: f32,
+    pub lat_deg: f32,
+    pub lat_min: f32,
     pub dir_lat: u8,
-    pub long: f32,
+    pub long_deg: f32,
+    pub long_min: f32,
     pub dir_long: u8,
     pub decli_mag: f32,
     pub cap_vrai: f32,
@@ -38,7 +40,7 @@ pub struct GPSData {
 
 impl fmt::Display for GPSData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "LAT: {} LONG: {}", self.lat, self.long)
+        write!(f, "LAT: {}\" {} LONG: {}\" {}", self.lat_deg, self.lat_min, self.long_deg, self.long_min)
     }
 }
 
@@ -120,10 +122,10 @@ impl IMU {
     pub fn empty() -> IMUData {
         IMUData {
             status: 0xFF,
-            ax: -1.0,
-            ay: -1.0,
-            az: -1.0,
-            temp: -1.0,
+            ax: 0.0,
+            ay: 0.0,
+            az: 0.0,
+            temp: 0.0,
         } 
     }
 }
@@ -134,14 +136,16 @@ impl GPS {
     pub fn empty() -> GPSData {
         GPSData {
             status: 0xFF,
-            lat: 0.0,
+            lat_deg: 0.0,
+            lat_min: 0.0,
             dir_lat: b'N',
-            long: 0.0,
+            long_deg: 0.0,
+            long_min: 0.0,
             dir_long: b'W',
             decli_mag: 0.0,
-            cap_vrai: -1.0,
-            cap_mag: -1.0,
-            vitesse_sol: -1.0,
+            cap_vrai: 0.0,
+            cap_mag: 0.0,
+            vitesse_sol: 0.0,
         } 
     }
 }
