@@ -1,3 +1,4 @@
+use axum::body::Bytes;
 use tokio::sync::watch;
 use tokio::sync::Mutex;
 use std::sync::Arc;
@@ -17,7 +18,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("[CORE] Telemetrie Proxy");
 
     // Gestion des canaux de communication inter-tâches
-    let (jpeg_tx, _) = watch::channel::<Vec<u8>>(res::NO_SIGNAL.to_vec());
+    let (jpeg_tx, _) = watch::channel::<Result<Bytes, Arc<dyn Error + Sync + Send>>>(Ok(axum::body::Bytes::new()));
     let (sensors_tx, _) = watch::channel::<sensors::SensorsData>(sensors::Sensors::empty());
     let (actuator_tx, actuator_rx) = watch::channel::<actuator::ActuatorData>(actuator::Actuator::empty());
 

@@ -1,23 +1,20 @@
 use tokio::sync::{watch::Sender, RwLock};
-use std::time::Instant;
 use rand::{distributions::Alphanumeric, Rng};
 use axum::{
-    body::Body, extract::{ws::WebSocketUpgrade, ConnectInfo, State}, response::Response, routing::get, Router
+    body::{Body, Bytes}, extract::{ws::WebSocketUpgrade, ConnectInfo, State}, response::Response, routing::get, Router
 };
 use tokio::sync::Mutex;
-use std::{net::{Ipv4Addr, SocketAddr, SocketAddrV4}, sync::{atomic::AtomicU32, Arc}};
+use std::{error::Error, net::{Ipv4Addr, SocketAddr, SocketAddrV4}, sync::{atomic::AtomicU32, Arc}};
 use crate::telemetrie::{actuator, sensors};
+use tokio_stream::wrappers::WatchStream;
 
-mod stream;
 mod websocket;
 
-async fn http_get_stream(State(tx): State<Arc<Mutex<Sender<Vec<u8>>>>>) -> Response<> {
+async fn http_get_stream(State(tx): State<Arc<Mutex<Sender<Result<Bytes, Arc<dyn std::error::Error + Sync + Send>>>>>>) -> Response<> {
     println!("[HTTP][JPEG] Nouveau client connecté");
-    let stream = stream::JPEGStream {
-        last_send: Instant::now(),
-        rx: tx.lock().await.subscribe()
-    };
-    let body = Body::from_stream(stream);
+
+    let stream_rx = WatchStream::new(tx.lock().await.subscribe());
+    let body = Body::from_stream(stream_rx);
 
     Response::builder()
     .status(200)
@@ -37,7 +34,7 @@ async fn http_get_websocket(
     ws.on_upgrade(|socket| websocket::websocket_handle(socket, wss))
 }
 
-pub async fn serve(port: i32, jpeg_tx: Arc<Mutex<Sender<Vec<u8>>>>, sensors_tx: Arc<Mutex<Sender<sensors::SensorsData>>>, actuator_tx: Arc<Mutex<Sender<actuator::ActuatorData>>>) {
+pub async fn serve(port: i32, jpeg_tx: Arc<Mutex<Sender<Result<Bytes, Arc<dyn Error + Sync + Send>>>>>, sensors_tx: Arc<Mutex<Sender<sensors::SensorsData>>>, actuator_tx: Arc<Mutex<Sender<actuator::ActuatorData>>>) {
     println!("[HTTP] Démarrage du serveur HTTP sur le port {}", port);
 
     // Génére une clé unique qui permet de s'authentifier en tant que "Pilote"

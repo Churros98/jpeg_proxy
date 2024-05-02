@@ -1,5 +1,6 @@
 use std::io::Error;
 use std::time::SystemTime;
+use axum::body::Bytes;
 use tokio::sync::Mutex;
 use std::sync::Arc;
 use tokio::{net::{TcpListener, TcpStream}, sync::watch::Sender, io::{AsyncReadExt, AsyncWriteExt}};
@@ -7,12 +8,12 @@ use tokio::{net::{TcpListener, TcpStream}, sync::watch::Sender, io::{AsyncReadEx
 
 pub struct JPEGServer {
     port: i32,
-    jpeg_tx: Arc<Mutex<Sender<Vec<u8>>>>,
+    jpeg_tx: Arc<Mutex<Sender<Result<Bytes, Arc<dyn std::error::Error + Sync + Send>>>>>,
     no_signal: Box<[u8]>,
 }
 
 impl JPEGServer {
-    pub fn new(port: i32, jpeg_tx: Arc<Mutex<Sender<Vec<u8>>>>, no_signal: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(port: i32, jpeg_tx: Arc<Mutex<Sender<Result<Bytes, Arc<dyn std::error::Error + Sync + Send>>>>>, no_signal: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
         Ok(JPEGServer {
             port: port,
             jpeg_tx: jpeg_tx,
@@ -45,10 +46,20 @@ impl JPEGServer {
         client.shutdown().await.expect("[JPEG] Impossible de fermer la connexion.\n");
     }
     
+    fn prepare_frame(&self, image: Vec<u8>) -> Result<axum::body::Bytes, Arc<dyn std::error::Error + Sync + Send>> {
+            // Je prépare les données pour le stream
+            let start_frame = format!("--frame\r\nContent-type: image/jpeg\r\nContent-Lenght: {}\r\n\r\n", image.len()).as_bytes().to_vec();
+            let frame = [start_frame, image].concat();
+            let frame_body = axum::body::Bytes::from(frame);
+
+            Ok(frame_body)
+    }
+
     async fn stream(&self, mut client: TcpStream) {
         let client_addr = client.local_addr().unwrap();
         println!("[JPEG][{}] Nouveau client connecté.", client_addr.to_string());
         
+        let no_signal_frame = self.prepare_frame(self.no_signal.to_vec());
         let mut start_time = SystemTime::now();
         let mut fps = 0;
     
@@ -67,8 +78,11 @@ impl JPEGServer {
                 Ok(_n) => {}
                 Err(e) => {self.error(&mut client, e).await; break;}
             }
-    
-            let in_stream = self.jpeg_tx.lock().await.send(image).is_ok();
+
+            // Je prépare les données pour le stream
+            let frame = self.prepare_frame(image);
+
+            let in_stream = self.jpeg_tx.lock().await.send(frame).is_ok();
 
             fps = fps + 1;
         
@@ -80,6 +94,6 @@ impl JPEGServer {
         }
     
         println!("[JPEG][{}] Client déconnecté.", client_addr.to_string());
-        self.jpeg_tx.lock().await.send(self.no_signal.to_vec()).expect("[JPEG] Impossible d'écrire les données dans le watcher.\n");
+        self.jpeg_tx.lock().await.send(no_signal_frame).expect("[JPEG] Impossible d'écrire les données dans le watcher.\n");
     }
 }
