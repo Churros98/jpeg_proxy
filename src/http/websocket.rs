@@ -12,9 +12,9 @@ use futures::stream::SplitStream;
 use futures::SinkExt;
 use futures::StreamExt;
 use tokio::sync::watch::Sender;
-use crate::telemetrie::actuator;
-use crate::telemetrie::actuator::Actuator;
-use crate::telemetrie::actuator::ActuatorData;
+use crate::commande::actuator;
+use crate::commande::actuator::Actuator;
+use crate::commande::actuator::ActuatorData;
 use crate::telemetrie::sensors;
 use tokio::time::Duration;
 use tokio::time::sleep;
@@ -72,14 +72,14 @@ pub async fn websocket_handle(socket: WebSocket, mut wss: WebsocketState) {
     }
 }
 
-/// Gestion de l'envoi des données de télémétrie au clients connectés.
+/// Gestion de l'envoi des données de télémétrie aux clients connectés.
 pub async fn websocket_sender(mut sender: SplitSink<WebSocket, Message>, wss: WebsocketState) {
     let mut sensors_rx = wss.sensors_tx.lock().await.subscribe();
 
     let mut last_message = SystemTime::now();
 
     loop {
-        // Récupére la dernière valeur renvoyé par la voiture
+        // Récupére la dernière valeur renvoyée par la voiture
         let sensors_data = *sensors_rx.borrow_and_update();
         
         if sensors_rx.has_changed().unwrap_or(false) {
@@ -140,7 +140,11 @@ pub async fn websocket_reader(mut receiver: SplitStream<WebSocket>, wss: Websock
                     } else {
                         let _ = wss.actuator_tx.lock().await.send(actuator_data.unwrap());
                     }
+                } else {
+                    println!("[HTTP][WEBSOCKET] Message envoyé sans permission [ID: {}]", wss.client_id);
                 }
+            } else {
+                println!("[HTTP][WEBSOCKET] Conversion en texte impossible.");
             }
         }
 

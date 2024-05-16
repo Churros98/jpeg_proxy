@@ -5,7 +5,8 @@ use axum::{
 };
 use tokio::sync::Mutex;
 use std::{error::Error, net::{Ipv4Addr, SocketAddr, SocketAddrV4}, sync::{atomic::AtomicU32, Arc}};
-use crate::telemetrie::{actuator, sensors};
+use crate::telemetrie::sensors;
+use crate::commande::actuator;
 use tokio_stream::wrappers::WatchStream;
 
 mod websocket;

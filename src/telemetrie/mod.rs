@@ -1,4 +1,4 @@
-use tokio::sync::{watch::Receiver, Mutex};
+use tokio::sync::Mutex;
 use std::sync::Arc;
 use tokio::{net::{TcpListener, TcpStream}, sync::watch::Sender, io::{AsyncReadExt, AsyncWriteExt}};
 use std::{time::SystemTime, usize};
@@ -8,21 +8,19 @@ use bincode::{config, error::DecodeError};
 use crate::telemetrie::sensors::{Sensors, SensorsData};
 
 pub mod sensors;
-pub mod actuator;
 
 pub struct Telemetrie {
     port: i32,
     sensors_tx: Arc<Mutex<Sender<sensors::SensorsData>>>,
-    actuator_rx: Receiver<actuator::ActuatorData>,
 }
 
+// Gestion de la télémétrie de la voiture télécommandée (Voiture => Proxy)
 impl Telemetrie {
     /// Création 
-    pub fn new(port: i32, sensors_tx: Arc<Mutex<Sender<sensors::SensorsData>>>, actuator_rx: Receiver<actuator::ActuatorData>) -> Result<Self, Box<dyn std::error::Error>> {
-        Ok(Telemetrie { 
+    pub fn new(port: i32, sensors_tx: Arc<Mutex<Sender<sensors::SensorsData>>>) -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(Telemetrie {
             port: port,
             sensors_tx: sensors_tx,
-            actuator_rx: actuator_rx,
         })
     }
 
@@ -62,8 +60,9 @@ impl Telemetrie {
         let mut fps = 0;
         let config = config::standard();
 
-        // Réception des données de télémétrie et envoi des commandes
+        // Réception des données de télémétrie
         loop  {
+            //println!("Attente pour la réception ...");
             // Je prépare un buffer avec des données vide à l'intérieur, puis je réceptionne les données de télémétrie
             let mut buf: Vec<u8> = bincode::encode_to_vec(&Sensors::empty(), config).unwrap();
             match client.read_exact(&mut buf).await {
@@ -71,23 +70,16 @@ impl Telemetrie {
                 Err(e) => {self.error(&mut client, e).await; break;}
             }
 
+            // println!("Decode ...");
             // Je décode les données de télémétrie, et je les envois dans le channel.
             let decoder: Result<(SensorsData, usize), DecodeError> = bincode::decode_from_slice(&buf[..], config);
             if decoder.is_err() {
-                println!("[TELEMETRIE] ERREUR: Impossible de décoder l'objet !");
+                println!("[TELEMETRIE] dERREUR: Impossible de décoder l'objet !");
             } else {
                 let (sensors_data, _len) = decoder.unwrap();
                 let _ = sensors_tx.lock().await.send(sensors_data);
                 fps = fps + 1;
-            }
-
-            // J'envoi en retour des données de commandes
-            // Prépare le buffer et écrit les données de télémétrie
-            let actuator_data = *self.actuator_rx.borrow();
-            let actuator_buffer: Vec<u8> = bincode::encode_to_vec(&actuator_data, config).unwrap();
-            match client.try_write(actuator_buffer.as_slice()) {
-                Ok(_n) => {}
-                Err(e) => {self.error(&mut client, e).await; break;}
+                // println!("OK");
             }
 
             // Affiche le nombre d'itération par secondes.
@@ -99,5 +91,6 @@ impl Telemetrie {
         }
 
         println!("[TELEMETRIE][{}] Client déconnecté.", client_addr.to_string());
+        let _ = sensors_tx.lock().await.send(Sensors::empty());
     }
 }

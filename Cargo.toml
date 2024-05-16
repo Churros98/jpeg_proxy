@@ -1,5 +1,5 @@
 [package]
-name = "video_proxy"
+name = "voiturerc_proxy"
 version = "0.1.0"
 edition = "2021"
 

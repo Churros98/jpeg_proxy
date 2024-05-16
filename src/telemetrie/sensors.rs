@@ -73,12 +73,26 @@ impl fmt::Display for AnalogData {
     }
 }
 
+// Structure de données pour la réception 4G
+#[derive(Encode, Decode, Clone, Debug, Copy, Serialize)]
+pub struct LTEData {
+    pub status: u8,
+    pub power: u32,
+}
+
+impl fmt::Display for LTEData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Power: {}", self.power)
+    }
+}
+
 /// Structure final
 #[derive(Clone, Encode, Decode, Serialize, Copy)]
 pub struct SensorsData {
     imu: IMUData,
     gps: GPSData,
     mag: MAGData,
+    lte: LTEData,
     analog: AnalogData,
 }
 
@@ -97,6 +111,7 @@ impl Sensors {
             imu: IMU::empty(),
             gps: GPS::empty(),
             mag: MAG::empty(),
+            lte: LTE::empty(),
             analog: Analog::empty(),
         }
     }
@@ -158,5 +173,16 @@ impl Analog {
             status: 0xFF,
             battery: 0.0,
         } 
+    }
+}
+
+pub struct LTE {}
+impl LTE {
+    /// Retourne des données vide
+    pub fn empty() -> LTEData {
+        LTEData {
+            status: 0xFF,
+            power: 999,
+        }
     }
 }
