@@ -1,4 +1,4 @@
-use std::io::Error;
+use std::{cmp::Ordering, io::Error};
 use std::time::SystemTime;
 use axum::body::Bytes;
 use tokio::sync::Mutex;
@@ -64,6 +64,7 @@ impl JPEGServer {
         let mut fps = 0;
     
         loop  {
+            // Je récupére la taille de l'image
             let mut size: [u8; 8] = [0; 8];
             match client.read_exact(&mut size).await {
                 Ok(_n) => {}
@@ -71,14 +72,28 @@ impl JPEGServer {
             }
     
             let size = u64::from_le_bytes(size) as usize;
+
+            // Si l'image est plus grande que 4MB, c'est qu'il y a un problème (~ 1080P)
+            if size > 4000000 {
+                println!("[JPEG][{}] Image trop grande ({}).", client_addr.to_string(), size);
+                break;
+            }
             //println!("[DEBUG] Taille de l'image: {} octets", size);
     
+            // Je récupére maintenant l'image
             let mut image = vec![0; size];
             match client.read_exact(&mut image).await {
                 Ok(_n) => {}
                 Err(e) => {self.error(&mut client, e).await; break;}
             }
 
+            // Je vérifie qu'il s'agit bien d'une image JPEG.
+            let jpeg_magic: &[u8] = &[0xff, 0xd8, 0xff, 0xe0];
+            if image[0..4].cmp(jpeg_magic) != Ordering::Equal {
+                println!("[JPEG][{}] Image invalide.", client_addr.to_string());
+                break;
+            }
+            
             // Je prépare les données pour le stream
             let frame = self.prepare_frame(image);
 
@@ -94,6 +109,8 @@ impl JPEGServer {
         }
     
         println!("[JPEG][{}] Client déconnecté.", client_addr.to_string());
-        self.jpeg_tx.lock().await.send(no_signal_frame).expect("[JPEG] Impossible d'écrire les données dans le watcher.\n");
+        if let Err(_e) = self.jpeg_tx.lock().await.send(no_signal_frame) {
+            println!("[JPEG] Impossible d'écrire les données dans le watcher.\n");
+        }
     }
 }
