@@ -9,6 +9,9 @@ use std::error::Error;
 use std::collections::HashMap;
 use tokio_util::sync::CancellationToken;
 
+#[cfg(unix)]
+use tokio::signal::unix::SignalKind;
+
 mod http;
 mod jpeg;
 
