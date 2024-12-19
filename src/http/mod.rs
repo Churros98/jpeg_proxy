@@ -1,15 +1,39 @@
-use std::{error::Error, net::SocketAddr, sync::Arc};
+use std::{collections::HashMap, error::Error, net::SocketAddr, sync::Arc};
 use tokio::sync::watch::Sender;
 use axum::{
-    body::{Body, Bytes}, extract::State, response::Response, routing::get, Router
+    body::{Body, Bytes}, extract::{Path, State}, response::Response, routing::get, Router
 };
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::WatchStream;
+use uuid::Uuid;
 
-async fn http_get_stream(State(tx): State<Arc<Mutex<Sender<Result<Bytes, Arc<dyn std::error::Error + Sync + Send>>>>>>) -> Response<> {
-    println!("[HTTP][JPEG] Nouveau client connecté");
+async fn http_get_stream(
+    Path(uuid): Path<String>,
+    State(jpeg_watcher): State<Arc<Mutex<HashMap<Uuid, Sender<Result<Bytes, Arc<dyn Error + Sync + Send>>>>>>>
+) -> Response<Body> {
+    println!("[HTTP] New client connected");
 
-    let stream_rx = WatchStream::new(tx.lock().await.subscribe());
+    let uuid = match Uuid::parse_str(&uuid) {
+        Ok(uuid) => uuid,
+        Err(_) => {
+            println!("[HTTP] Invalid UUID: {}", uuid);
+            return Response::builder().status(400).body(Body::empty()).unwrap();
+        }
+    };
+
+    let rx = {
+        let jpeg_watcher = jpeg_watcher.lock().await;
+        let tx =jpeg_watcher.get(&uuid);
+        match tx {
+            Some(tx) => tx.subscribe(),
+            None => {
+                println!("[HTTP] Streamer {} not found", uuid);
+                return Response::builder().status(404).body(Body::empty()).unwrap();
+            }
+        }
+    };
+
+    let stream_rx = WatchStream::new(rx);
     let body = Body::from_stream(stream_rx);
 
     Response::builder()
@@ -20,14 +44,14 @@ async fn http_get_stream(State(tx): State<Arc<Mutex<Sender<Result<Bytes, Arc<dyn
     .body(body).unwrap()
 }
 
-pub async fn serve(port: i32, jpeg_tx: Arc<Mutex<Sender<Result<Bytes, Arc<dyn Error + Sync + Send>>>>>) {
-    println!("[HTTP] Démarrage du serveur HTTP sur le port {}", port);
+pub async fn serve(port: i32, jpeg_watcher: Arc<Mutex<HashMap<Uuid, Sender<Result<Bytes, Arc<dyn Error + Sync + Send>>>>>>) {
+    println!("[HTTP] Starting HTTP server on port {}", port);
 
-    // Créer la route
+    // Create route
     let app = Router::new()
-    .route("/stream", get(http_get_stream).with_state(jpeg_tx.clone()));
+    .route("/:uuid", get(http_get_stream).with_state(jpeg_watcher.clone()));
 
-    // Démarre l'application
+    // Start application
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await.unwrap();
     axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await.unwrap();
 }

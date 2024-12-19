@@ -1,5 +1,5 @@
 [package]
-name = "voiturerc_proxy"
+name = "jpeg_proxy"
 version = "0.1.0"
 edition = "2021"
 
@@ -16,3 +16,5 @@ serde_json = "1.0"
 rand = "0.5.0"
 tokio-stream = { version = "0.1.15", features = ["sync"] }
 futures-util = "0.3"
+uuid = "1.11.0"
+tokio-util = "0.7.13"
