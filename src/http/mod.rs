@@ -40,8 +40,9 @@ async fn http_get_sshot(
 
         Response::builder()
         .status(200)
-        .header(axum::http::header::CONNECTION, "keep-alive")
-        .header(axum::http::header::CONTENT_TYPE, "image/jpeg")
+        .header(axum::http::header::CONNECTION, "close")
+        .header(axum::http::header::CONTENT_TYPE, "multipart/x-mixed-replace; boundary=--frame")
+        .header(axum::http::header::CACHE_CONTROL, "no-cache, no-store, must-revalidate")
         .body(body).unwrap()
     } else {
         Response::builder().status(axum::http::StatusCode::BAD_REQUEST).body(Body::empty()).unwrap()
