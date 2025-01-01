@@ -21,7 +21,7 @@ async fn http_get_sshot(
         }
     };
 
-    let mut rx = {
+    let rx = {
         let jpeg_watcher = jpeg_watcher.lock().await;
         let tx = jpeg_watcher.get(&uuid);
         match tx {
@@ -33,14 +33,14 @@ async fn http_get_sshot(
         }
     };
 
-    let jpeg_data = rx.borrow_and_update().clone();
+    let jpeg_data = rx.borrow().clone();
 
     if let Ok(jpeg_data) = jpeg_data {
         let body = Body::from(jpeg_data);
 
         Response::builder()
         .status(200)
-        .header(axum::http::header::CONNECTION, "close")
+        .header(axum::http::header::CONNECTION, "keep-alive")
         .header(axum::http::header::CONTENT_TYPE, "multipart/x-mixed-replace; boundary=--frame")
         .header(axum::http::header::CACHE_CONTROL, "no-cache, no-store, must-revalidate")
         .body(body).unwrap()
